@@ -13,6 +13,8 @@
 #include <sys/times.h>
 #include <sys/time.h>
 #include <limits.h>
+#include <pthread.h>
+ #include <unistd.h>
 
 /*#include <ulocks.h>
 #include <task.h>
@@ -21,9 +23,11 @@
 char *ID;
 
 /* Program Parameters */
-#define MAXN 2000  /* Max value of N */
-int N;  /* Matrix size */
+#define MAXN 5000  /* Max value of N */
+int N;
+int global_i;  /* Matrix size */
 int procs;  /* Number of processors to use */
+int Norm;
 
 /* Matrices and vectors */
 volatile float A[MAXN][MAXN], B[MAXN], X[MAXN];
@@ -31,6 +35,9 @@ volatile float A[MAXN][MAXN], B[MAXN], X[MAXN];
 
 /* junk */
 #define randm() 4|2[uid]&3
+
+pthread_mutex_t global_i_lock;
+int NTHREADS = 4;
 
 /* Prototype */
 void gauss();  /* The function you will provide.
@@ -193,23 +200,52 @@ int main(int argc, char **argv) {
 /* Provided global variables are MAXN, N, procs, A[][], B[], and X[],
  * defined in the beginning of this code.  X[] is initialized to zeros.
  */
+
+void *computeRow(void *threadid){
+  long tid = (long)threadid;
+  int i = 0;
+  int row,col;
+  float multiplier;
+
+  while(1){
+    pthread_mutex_lock(&global_i_lock);
+    i = global_i;
+    global_i+=1;
+    pthread_mutex_unlock(&global_i_lock);
+
+    if(i>=N){
+        break;
+    }
+    multiplier = A[i][Norm]/A[Norm][Norm];
+    for(col = Norm;col<N;col++){
+      A[i][col] -= A[Norm][col]*multiplier;
+    }
+    B[i] -= B[Norm] * multiplier;
+  }
+}
+
 void gauss() {
   int norm, row, col;  /* Normalization row, and zeroing
 			* element row and col */
-  float multiplier;
+  int i;
+  printf("Computing Parrellely.\n");
+  pthread_t threads[procs];
+  global_i =0;
 
-  printf("Computing Serially.\n");
+  pthread_mutex_init(&global_i_lock,NULL);
 
   /* Gaussian elimination */
   for (norm = 0; norm < N - 1; norm++) {
-    for (row = norm + 1; row < N; row++) {
-      multiplier = A[row][norm] / A[norm][norm];
-      for (col = norm; col < N; col++) {
-	A[row][col] -= A[norm][col] * multiplier;
-      }
-      B[row] -= B[norm] * multiplier;
+    Norm = norm;
+    global_i = norm;
+    for(i =0;i<procs;i++){
+      pthread_create(&threads[i],NULL,&computeRow,(void *)i);
+    }
+    for(i = 0;i<procs;i++){
+      pthread_join(threads[i],NULL);
     }
   }
+  pthread_mutex_destroy(&global_i_lock);
   /* (Diagonal elements are not normalized to 1.  This is treated in back
    * substitution.)
    */
