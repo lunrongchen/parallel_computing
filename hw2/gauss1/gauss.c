@@ -21,7 +21,7 @@
 char *ID;
 
 /* Program Parameters */
-#define MAXN 2000  /* Max value of N */
+#define MAXN 5000  /* Max value of N */
 int N;  /* Matrix size */
 int procs;  /* Number of processors to use */
 int rank; /* current process id */
@@ -35,9 +35,9 @@ volatile float A[MAXN][MAXN], B[MAXN], X[MAXN];
 
 /* Prototype */
 void gauss();  /* The function you will provide.
-		* It is this routine that is timed.
-		* It is called only on the parent.
-		*/
+    * It is this routine that is timed.
+    * It is called only on the parent.
+    */
 
 /* returns a seed for srand based on the time */
 unsigned int time_seed() {
@@ -49,55 +49,55 @@ unsigned int time_seed() {
 }
 
 /* Set the program parameters from the command-line arguments */
-// void parameters(int argc, char **argv) {
-//   int submit = 0;  /* = 1 if submission parameters should be used */
-//   int seed = 0;  /* Random seed */
-//   char uid[L_cuserid + 2]; /*User name */
+void parameters(int argc, char **argv) {
+  int submit = 0;  /* = 1 if submission parameters should be used */
+  int seed = 0;  /* Random seed */
+  char uid[L_cuserid + 2]; /*User name */
 
-//   /* Read command-line arguments */
-//   //  if (argc != 3) {
-//   if ( argc == 1 && !strcmp(argv[1], "submit") ) {
-//     /* Use submission parameters */
-//     submit = 1;
-//     N = 4;
-//     procs = 2;
-//     printf("\nSubmission run for \"%s\".\n", cuserid(uid));
-//       /*uid = ID;*/
-//     strcpy(uid,ID);
-//     srand(randm());
-//   }
-//   else {
-//     if (argc == 3) {
-//       seed = atoi(argv[3]);
-//       srand(seed);
-//       printf("Random seed = %i\n", seed);
-//     }
-//     else {
-//       printf("Usage: %s <matrix_dimension> <num_procs> [random seed]\n",
-// 	     argv[0]);
-//       printf("       %s submit\n", argv[0]);
-//       exit(0);
-//     }
-//   }
-//     //  }
-//   /* Interpret command-line args */
-//   if (!submit) {
-//     N = atoi(argv[1]);
-//     if (N < 1 || N > MAXN) {
-//       printf("N = %i is out of range.\n", N);
-//       exit(0);
-//     }
-//     procs = atoi(argv[2]);
-//     if (procs < 1) {
-//       printf("Warning: Invalid number of processors = %i.  Using 1.\n", procs);
-//       procs = 1;
-//     }
-//   }
+  /* Read command-line arguments */
+  //  if (argc != 3) {
+  if ( argc == 1 && !strcmp(argv[1], "submit") ) {
+    /* Use submission parameters */
+    submit = 1;
+    N = 4;
+    procs = 2;
+    printf("\nSubmission run for \"%s\".\n", cuserid(uid));
+      /*uid = ID;*/
+    strcpy(uid,ID);
+    srand(randm());
+  }
+  else {
+    if (argc == 3) {
+      seed = atoi(argv[3]);
+      srand(seed);
+      printf("Random seed = %i\n", seed);
+    }
+    else {
+      printf("Usage: %s <matrix_dimension> <num_procs> [random seed]\n",
+       argv[0]);
+      printf("       %s submit\n", argv[0]);
+      exit(0);
+    }
+  }
+    //  }
+  /* Interpret command-line args */
+  if (!submit) {
+    N = atoi(argv[1]);
+    if (N < 1 || N > MAXN) {
+      printf("N = %i is out of range.\n", N);
+      exit(0);
+    }
+    procs = atoi(argv[2]);
+    if (procs < 1) {
+      printf("Warning: Invalid number of processors = %i.  Using 1.\n", procs);
+      procs = 1;
+    }
+  }
 
-//   /* Print parameters */
-//   printf("\nMatrix dimension N = %i.\n", N);
-//   printf("Number of processors = %i.\n", procs);
-// }
+  /* Print parameters */
+  printf("\nMatrix dimension N = %i.\n", N);
+  printf("Number of processors = %i.\n", procs);
+}
 
 /* Initialize A and B (and X to 0.0s) */
 void initialize_inputs() {
@@ -122,7 +122,7 @@ void print_inputs() {
     printf("\nA =\n\t");
     for (row = 0; row < N; row++) {
       for (col = 0; col < N; col++) {
-	printf("%5.2f%s", A[row][col], (col < N-1) ? ", " : ";\n\t");
+  printf("%5.2f%s", A[row][col], (col < N-1) ? ", " : ";\n\t");
       }
     }
     printf("\nB = [");
@@ -145,7 +145,7 @@ void print_X() {
 
 int main(int argc, char **argv) {
   /* Start up MPI. */ 
-  MPI_Init(&argc, &argv);
+  MPI_Init(NULL, NULL);
 
   /* Timing variables */
   struct timeval etstart, etstop;  /* Elapsed times using gettimeofday() */
@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
   argc--;
 
   /* Process program parameters */
-  // parameters(argc, argv);
+  parameters(argc, argv);
 
   if (rank == 0) {
     /* Initialize A and B */
@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 
   /* Display timing results */
   printf("\nElapsed time = %g ms.\n",
-	 (float)(usecstop - usecstart)/(float)1000);
+   (float)(usecstop - usecstart)/(float)1000);
 
 
 }
@@ -208,18 +208,18 @@ int main(int argc, char **argv) {
  */
 void gauss() {
   int norm, row, col, i;  /* Normalization row, and zeroing
-			element row and col */
+      element row and col */
   float multiplier[N];
 
   printf("Computing Serially.\n");
 
-  MPI_Bcast (&A[0][0], N*N, MPI_FLOAT, 0, MPI_COMM_WORLD);
-  MPI_Bcast (B, N, MPI_FLOAT, 0, MPI_COMM_WORLD); 
+  MPI_Bcast ((void*)&A[0][0], N*N, MPI_FLOAT, 0, MPI_COMM_WORLD);
+  MPI_Bcast ((void*)B, N, MPI_FLOAT, 0, MPI_COMM_WORLD); 
 
   /* Gaussian elimination */
   for (norm = 0; norm < N - 1; norm++) {
-    MPI_Bcast (&A[norm][norm], N - norm, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD);
-    MPI_Bcast (&B[norm], 1, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD); 
+    MPI_Bcast ((void*)&A[norm][norm], N - norm, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD);
+    MPI_Bcast ((void*)&B[norm], 1, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD); 
     for (i = norm + 1; i < N; i++)
     {
       if(rank == (norm % procs)){
