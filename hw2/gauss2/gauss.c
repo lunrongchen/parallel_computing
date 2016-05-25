@@ -13,9 +13,7 @@
 #include <sys/times.h>
 #include <sys/time.h>
 #include <limits.h>
-#include <pthread.h>
- #include <unistd.h>
-
+#include "mpi.h"
 /*#include <ulocks.h>
 #include <task.h>
 */
@@ -23,11 +21,10 @@
 char *ID;
 
 /* Program Parameters */
-#define MAXN 5000  /* Max value of N */
-int N;
-int global_i;  /* Matrix size */
+#define MAXN 2000  /* Max value of N */
+int N;  /* Matrix size */
 int procs;  /* Number of processors to use */
-int Norm;
+int rank; /* current process id */
 
 /* Matrices and vectors */
 volatile float A[MAXN][MAXN], B[MAXN], X[MAXN];
@@ -35,9 +32,6 @@ volatile float A[MAXN][MAXN], B[MAXN], X[MAXN];
 
 /* junk */
 #define randm() 4|2[uid]&3
-
-pthread_mutex_t global_i_lock;
-int NTHREADS = 4;
 
 /* Prototype */
 void gauss();  /* The function you will provide.
@@ -150,6 +144,9 @@ void print_X() {
 }
 
 int main(int argc, char **argv) {
+  /* Start up MPI. */ 
+  MPI_Init(&argc, &argv);
+
   /* Timing variables */
   struct timeval etstart, etstop;  /* Elapsed times using gettimeofday() */
   struct timezone tzdummy;
@@ -157,17 +154,26 @@ int main(int argc, char **argv) {
   unsigned long long usecstart, usecstop;
   struct tms cputstart, cputstop;  /* CPU times for my processes */
 
+  int procs;  /* Number of processors to use */
+  int rank; /* current process id */
+
+  /* Get the number of processes. */ 
+  MPI_Comm_size(MPI_COMM_WORLD, &procs);
+  /* Get my rank. */ 
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   ID = argv[argc-1];
   argc--;
 
   /* Process program parameters */
   // parameters(argc, argv);
 
-  /* Initialize A and B */
-  initialize_inputs();
-
-  /* Print input matrices */
-  print_inputs();
+  if (rank == 0) {
+    /* Initialize A and B */
+    initialize_inputs();
+    /* Print input matrices */
+    print_inputs();
+  }
 
   /* Start Clock */
   printf("\nStarting clock.\n");
@@ -200,63 +206,50 @@ int main(int argc, char **argv) {
 /* Provided global variables are MAXN, N, procs, A[][], B[], and X[],
  * defined in the beginning of this code.  X[] is initialized to zeros.
  */
-
-void *computeRow(void *threadid){
-  long tid = (long)threadid;
-  int i = 0;
-  int row,col;
-  float multiplier;
-
-  while(1){
-    pthread_mutex_lock(&global_i_lock);
-    i = global_i;
-    global_i+=1;
-    pthread_mutex_unlock(&global_i_lock);
-
-    if(i>=N){
-        break;
-    }
-    multiplier = A[i][Norm]/A[Norm][Norm];
-    for(col = Norm;col<N;col++){
-      A[i][col] -= A[Norm][col]*multiplier;
-    }
-    B[i] -= B[Norm] * multiplier;
-  }
-}
-
 void gauss() {
-  int norm, row, col;  /* Normalization row, and zeroing
-			* element row and col */
-  int i;
-  printf("Computing Parrellely.\n");
-  pthread_t threads[procs];
-  global_i =0;
+  int norm, row, col, i;  /* Normalization row, and zeroing
+			element row and col */
+  float multiplier[N];
 
-  pthread_mutex_init(&global_i_lock,NULL);
+  printf("Computing Serially.\n");
+
+  MPI_Bcast (&A[0][0], N*N, MPI_FLOAT, 0, MPI_COMM_WORLD);
+  MPI_Bcast (B, N, MPI_FLOAT, 0, MPI_COMM_WORLD); 
 
   /* Gaussian elimination */
   for (norm = 0; norm < N - 1; norm++) {
-    Norm = norm;
-    global_i = norm;
-    for(i =0;i<procs;i++){
-      pthread_create(&threads[i],NULL,&computeRow,(void *)i);
+    MPI_Bcast (&A[norm][norm], N - norm, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD);
+    MPI_Bcast (&B[norm], 1, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD); 
+    for (i = norm + 1; i < N; i++)
+    {
+      if(rank == (norm % procs)){
+        multiplier[i] = A[i][norm]/A[norm][norm];
+      }
     }
-    for(i = 0;i<procs;i++){
-      pthread_join(threads[i],NULL);
+
+    for (row = norm + 1; row < N; row++) {
+      // multiplier = A[row][norm] / A[norm][norm];
+      if(rank == (norm % procs)) {
+        for (col = norm; col < N; col++) {
+           A[row][col] -= A[norm][col] * multiplier[row];
+        }
+        B[row] -= B[norm] * multiplier[row];
+      }
     }
   }
-  pthread_mutex_destroy(&global_i_lock);
   /* (Diagonal elements are not normalized to 1.  This is treated in back
    * substitution.)
    */
 
-
   /* Back substitution */
-  for (row = N - 1; row >= 0; row--) {
-    X[row] = B[row];
-    for (col = N-1; col > row; col--) {
-      X[row] -= A[row][col] * X[col];
+  if(rank == 0){
+    for (row = N - 1; row >= 0; row--) {
+      X[row] = B[row];
+      for (col = N-1; col > row; col--) {
+        X[row] -= A[row][col] * X[col];
+      }
+      X[row] /= A[row][row];
     }
-    X[row] /= A[row][row];
   }
+  MPI_Finalize();
 }

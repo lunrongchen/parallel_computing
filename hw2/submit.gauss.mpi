@@ -1,0 +1,15 @@
+######################################
+## Example submit description file
+## for MPICH MPI
+######################################
+universe = parallel
+executable = mp2script
+arguments = ./gauss
+log = gauss.log
+output = gauss.out.$(CLUSTER)
+error = gauss.err.$(CLUSTER)
+machine_count = 1
+should_transfer_files = yes
+when_to_transfer_output = on_exit
+transfer_input_files = ./gauss
+queue

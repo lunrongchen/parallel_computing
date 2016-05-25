@@ -1,0 +1,45 @@
+#!/bin/sh
+
+MPDIR=/usr/lib64/mpich/bin
+
+PATH=$MPDIR:.:$PATH
+export PATH
+
+_CONDOR_PROCNO=$_CONDOR_PROCNO
+_CONDOR_NPROCS=$_CONDOR_NPROCS
+
+# Remove the contact file, so if we are held and released
+# it can be recreated anew
+
+rm -f $CONDOR_CONTACT_FILE
+
+PATH=`condor_config_val libexec`/:$PATH
+
+
+if [ $_CONDOR_PROCNO -eq 0 ]
+then
+      echo "trying"
+
+	echo "setting up "
+	echo $_CONDOR_NPROCS
+	SLOTS=$($(condor_config_val libexec)/condor_chirp get_job_attr AllRemoteHosts)
+	MACHINE_FILE="${_CONDOR_SCRATCH_DIR}/hosts"
+
+	echo $SLOTS |  sed -e 's/\"\(.*\)\".*/\1/' -e 's/,/\n/g' |tr  "@" "\n"|
+grep -v slot >> ${MACHINE_FILE}
+        echo "---"
+	cat ${MACHINE_FILE}	
+	echo "---"
+
+        echo "running job"
+	## run the actual mpijob in mpich1 mode
+	
+       	mpiexec -launcher ssh  -n $_CONDOR_NPROCS -f ${MACHINE_FILE} $EXECUTABLE $@ 
+	e=$?
+
+	sleep 20
+	echo "first node out"
+	echo $e
+else
+	echo "second node out"
+fi
