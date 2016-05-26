@@ -4,11 +4,11 @@
 ######################################
 universe = parallel
 executable = mp2script
-arguments = ./gauss
+arguments = ./gauss 5000 16 5555
 log = gauss.log
 output = gauss.out.$(CLUSTER)
 error = gauss.err.$(CLUSTER)
-machine_count = 1
+machine_count = 16
 should_transfer_files = yes
 when_to_transfer_output = on_exit
 transfer_input_files = ./gauss

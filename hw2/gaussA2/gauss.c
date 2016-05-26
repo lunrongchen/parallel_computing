@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
   clock_t etstart2, etstop2;  /* Elapsed times using times() */
   unsigned long long usecstart, usecstop;
   struct tms cputstart, cputstop;  /* CPU times for my processes */
-
+  double starttime, endtime; 
   /* Get the number of processes. */ 
   MPI_Comm_size(MPI_COMM_WORLD, &procs);
   /* Get my rank. */ 
@@ -208,7 +208,7 @@ int main(int argc, char **argv) {
     printf("\nStarting clock.\n");
     gettimeofday(&etstart, &tzdummy);
     etstart2 = times(&cputstart);
-
+    starttime = MPI_Wtime();
     MPI_Bcast((void*)&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     /* Initialize A and B */
@@ -242,6 +242,9 @@ int main(int argc, char **argv) {
       X[row] /= A[row][row];
     }
   }
+  endtime   = MPI_Wtime(); 
+  printf("MPI_Wtime took %f seconds\n",endtime-starttime); 
+
   MPI_Finalize();
   /* Stop Clock */
   gettimeofday(&etstop, &tzdummy);
