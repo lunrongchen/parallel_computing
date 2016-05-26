@@ -23,7 +23,7 @@ char *ID;
 /* Program Parameters */
 #define MAXN 5000  /* Max value of N */
 int N;  /* Matrix size */
-int procs;  /* Number of processors to use */
+int procs;   /* Number of processors to use */
 int rank; /* current process id */
 
 /* Matrices and vectors */
@@ -143,19 +143,52 @@ void print_X() {
   }
 }
 
+void Send_data(int rank, int procs) {
+  int dest, i;
+  MPI_Status status;
+  if (rank == 0){
+    for (i = 0; i < N; i++) {
+      dest = i % procs;
+      if (dest != 0) { 
+        MPI_Send((void*)A[i], N, MPI_FLOAT, dest, i, MPI_COMM_WORLD);
+        MPI_Send((void*)&B[i], 1, MPI_FLOAT, dest, i+N, MPI_COMM_WORLD);
+      }
+    }
+  } else {
+    for (i = 0; i < N; i++) {
+      dest = i % procs;
+      if (dest == rank) {
+        MPI_Recv((void*)A[i], N, MPI_FLOAT, 0, i, MPI_COMM_WORLD, &status);
+        MPI_Recv((void*)&B[i], 1, MPI_FLOAT, 0, i+N, MPI_COMM_WORLD, &status);
+      }
+    }
+  }
+}
+
+void Compute(int norm, int rank, int procs) { 
+  int row, col;
+  float multiplier;
+  for (row = norm + 1; row < N; row++) {
+      if (row % procs == rank) {
+        multiplier = A[row][norm] / A[norm][norm];
+        for (col = norm; col < N; col++) {
+          A[row][col] -= A[norm][col] * multiplier;
+        }
+        B[row] -= B[norm] * multiplier;
+      }
+    }
+}
+
 int main(int argc, char **argv) {
+  // MPI_Status  status;
   /* Start up MPI. */ 
   MPI_Init(NULL, NULL);
-
   /* Timing variables */
   struct timeval etstart, etstop;  /* Elapsed times using gettimeofday() */
   struct timezone tzdummy;
   clock_t etstart2, etstop2;  /* Elapsed times using times() */
   unsigned long long usecstart, usecstop;
   struct tms cputstart, cputstop;  /* CPU times for my processes */
-
-  int procs;  /* Number of processors to use */
-  int rank; /* current process id */
 
   /* Get the number of processes. */ 
   MPI_Comm_size(MPI_COMM_WORLD, &procs);
@@ -167,22 +200,49 @@ int main(int argc, char **argv) {
 
   /* Process program parameters */
   parameters(argc, argv);
+  /* Gaussian Elimination */
+  int norm, row, col, i;  /* Normalization row, and zeroing element row and col */
 
   if (rank == 0) {
+    /* Start Clock */
+    printf("\nStarting clock.\n");
+    gettimeofday(&etstart, &tzdummy);
+    etstart2 = times(&cputstart);
+
+    MPI_Bcast((void*)&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
     /* Initialize A and B */
     initialize_inputs();
     /* Print input matrices */
     print_inputs();
+  }else {
+    MPI_Bcast((void*)&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
   }
+  Send_data(rank, procs);
 
-  /* Start Clock */
-  printf("\nStarting clock.\n");
-  gettimeofday(&etstart, &tzdummy);
-  etstart2 = times(&cputstart);
+  /* Gaussian elimination */
+  for (norm = 0; norm < N - 1; norm++) {
+    for (i = norm; i < N; i++){
+        MPI_Bcast((void*)A[i], N, MPI_FLOAT, i%procs, MPI_COMM_WORLD);
+        MPI_Bcast((void*)&B[i], 1, MPI_FLOAT, i%procs, MPI_COMM_WORLD);
+    }
+    Compute(norm, rank, procs);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+  MPI_Bcast((void*)A[N-1], N, MPI_FLOAT, (N-1)%procs, MPI_COMM_WORLD);
+  MPI_Bcast((void*)&B[N-1], 1, MPI_FLOAT, (N-1)%procs, MPI_COMM_WORLD);
 
-  /* Gaussian Elimination */
-  gauss();
-
+  /* Back substitution */
+  if(rank == 0){
+    for (row = N - 1; row >= 0; row--) {
+      X[row] = B[row];
+      for (col = N-1; col > row; col--) {
+        X[row] -= A[row][col] * X[col];
+      }
+      X[row] /= A[row][row];
+    }
+  }
+  MPI_Finalize();
   /* Stop Clock */
   gettimeofday(&etstop, &tzdummy);
   etstop2 = times(&cputstop);
@@ -196,60 +256,4 @@ int main(int argc, char **argv) {
   /* Display timing results */
   printf("\nElapsed time = %g ms.\n",
    (float)(usecstop - usecstart)/(float)1000);
-
-
-}
-
-/* ------------------ Above Was Provided --------------------- */
-
-/****** You will replace this routine with your own parallel version *******/
-/* Provided global variables are MAXN, N, procs, A[][], B[], and X[],
- * defined in the beginning of this code.  X[] is initialized to zeros.
- */
-void gauss() {
-  int norm, row, col, i;  /* Normalization row, and zeroing
-      element row and col */
-  float multiplier[N];
-
-  printf("Computing Serially.\n");
-
-  MPI_Bcast ((void*)&A[0][0], N*N, MPI_FLOAT, 0, MPI_COMM_WORLD);
-  MPI_Bcast ((void*)B, N, MPI_FLOAT, 0, MPI_COMM_WORLD); 
-
-  /* Gaussian elimination */
-  for (norm = 0; norm < N - 1; norm++) {
-    MPI_Bcast ((void*)&A[norm][norm], N - norm, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD);
-    MPI_Bcast ((void*)&B[norm], 1, MPI_FLOAT, (norm % procs), MPI_COMM_WORLD); 
-    for (i = norm + 1; i < N; i++)
-    {
-      if(rank == (norm % procs)){
-        multiplier[i] = A[i][norm]/A[norm][norm];
-      }
-    }
-
-    for (row = norm + 1; row < N; row++) {
-      // multiplier = A[row][norm] / A[norm][norm];
-      if(rank == (norm % procs)) {
-        for (col = norm; col < N; col++) {
-           A[row][col] -= A[norm][col] * multiplier[row];
-        }
-        B[row] -= B[norm] * multiplier[row];
-      }
-    }
-  }
-  /* (Diagonal elements are not normalized to 1.  This is treated in back
-   * substitution.)
-   */
-
-  /* Back substitution */
-  if(rank == 0){
-    for (row = N - 1; row >= 0; row--) {
-      X[row] = B[row];
-      for (col = N-1; col > row; col--) {
-        X[row] -= A[row][col] * X[col];
-      }
-      X[row] /= A[row][row];
-    }
-  }
-  MPI_Finalize();
 }
