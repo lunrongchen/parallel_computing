@@ -1,0 +1,16 @@
+######################################
+## Example submit description file
+## for MPICH MPI
+######################################
+universe = parallel
+executable = mp2script
+arguments = ./cpi
+log = cpi.log
+output = cpi.out.$(CLUSTER)
+error = cpi.err.$(CLUSTER)
+machine_count = 8
+should_transfer_files = yes
+when_to_transfer_output = on_exit
+transfer_input_files = ./cpi
+queue
+

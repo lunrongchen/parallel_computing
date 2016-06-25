@@ -55,55 +55,55 @@ unsigned int time_seed() {
 }
 
 /* Set the program parameters from the command-line arguments */
-void parameters(int argc, char **argv) {
-  int submit = 0;  /* = 1 if submission parameters should be used */
-  int seed = 0;  /* Random seed */
-  char uid[L_cuserid + 2]; /*User name */
+// void parameters(int argc, char **argv) {
+//   int submit = 0;  /* = 1 if submission parameters should be used */
+//   int seed = 0;  /* Random seed */
+//   char uid[L_cuserid + 2]; /*User name */
 
-  /* Read command-line arguments */
-  //  if (argc != 3) {
-  if ( argc == 1 && !strcmp(argv[1], "submit") ) {
-    /* Use submission parameters */
-    submit = 1;
-    N = 4;
-    procs = 2;
-    printf("\nSubmission run for \"%s\".\n", cuserid(uid));
-      /*uid = ID;*/
-    strcpy(uid,ID);
-    srand(randm());
-  }
-  else {
-    if (argc == 3) {
-      seed = atoi(argv[3]);
-      srand(seed);
-      printf("Random seed = %i\n", seed);
-    }
-    else {
-      printf("Usage: %s <matrix_dimension> <num_procs> [random seed]\n",
-	     argv[0]);
-      printf("       %s submit\n", argv[0]);
-      exit(0);
-    }
-  }
-    //  }
-  /* Interpret command-line args */
-  if (!submit) {
-    N = atoi(argv[1]);
-    if (N < 1 || N > MAXN) {
-      printf("N = %i is out of range.\n", N);
-      exit(0);
-    }
-    procs = atoi(argv[2]);
-    if (procs < 1) {
-      printf("Warning: Invalid number of processors = %i.  Using 1.\n", procs);
-      procs = 1;
-    }
-  }
+//   /* Read command-line arguments */
+//   //  if (argc != 3) {
+//   if ( argc == 1 && !strcmp(argv[1], "submit") ) {
+//     /* Use submission parameters */
+//     submit = 1;
+//     N = 4;
+//     procs = 2;
+//     printf("\nSubmission run for \"%s\".\n", cuserid(uid));
+//       /*uid = ID;*/
+//     strcpy(uid,ID);
+//     srand(randm());
+//   }
+//   else {
+//     if (argc == 3) {
+//       seed = atoi(argv[3]);
+//       srand(seed);
+//       printf("Random seed = %i\n", seed);
+//     }
+//     else {
+//       printf("Usage: %s <matrix_dimension> <num_procs> [random seed]\n",
+// 	     argv[0]);
+//       printf("       %s submit\n", argv[0]);
+//       exit(0);
+//     }
+//   }
+//     //  }
+//   /* Interpret command-line args */
+//   if (!submit) {
+//     N = atoi(argv[1]);
+//     if (N < 1 || N > MAXN) {
+//       printf("N = %i is out of range.\n", N);
+//       exit(0);
+//     }
+//     procs = atoi(argv[2]);
+//     if (procs < 1) {
+//       printf("Warning: Invalid number of processors = %i.  Using 1.\n", procs);
+//       procs = 1;
+//     }
+//   }
 
-  /* Print parameters */
-  printf("\nMatrix dimension N = %i.\n", N);
-  printf("Number of processors = %i.\n", procs);
-}
+//   /* Print parameters */
+//   printf("\nMatrix dimension N = %i.\n", N);
+//   printf("Number of processors = %i.\n", procs);
+// }
 
 /* Initialize A and B (and X to 0.0s) */
 void initialize_inputs() {
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
   argc--;
 
   /* Process program parameters */
-  parameters(argc, argv);
+  // parameters(argc, argv);
 
   /* Initialize A and B */
   initialize_inputs();
