@@ -22,7 +22,7 @@ char *ID;
 
 /* Program Parameters */
 #define MAXN 5000  /* Max value of N */
-int N;  /* Matrix size */
+int N = 5000;  /* Matrix size */
 int procs;   /* Number of processors to use */
 int rank; /* current process id */
 
@@ -35,9 +35,9 @@ volatile float A[MAXN][MAXN], B[MAXN], X[MAXN];
 
 /* Prototype */
 void gauss();  /* The function you will provide.
-		* It is this routine that is timed.
-		* It is called only on the parent.
-		*/
+    * It is this routine that is timed.
+    * It is called only on the parent.
+    */
 
 /* returns a seed for srand based on the time */
 unsigned int time_seed() {
@@ -48,56 +48,6 @@ unsigned int time_seed() {
   return (unsigned int)(t.tv_usec);
 }
 
-/* Set the program parameters from the command-line arguments */
-void parameters(int argc, char **argv) {
-  int submit = 0;  /* = 1 if submission parameters should be used */
-  int seed = 0;  /* Random seed */
-  char uid[L_cuserid + 2]; /*User name */
-
-  /* Read command-line arguments */
-  //  if (argc != 3) {
-  if ( argc == 1 && !strcmp(argv[1], "submit") ) {
-    /* Use submission parameters */
-    submit = 1;
-    N = 4;
-    procs = 2;
-    printf("\nSubmission run for \"%s\".\n", cuserid(uid));
-      /*uid = ID;*/
-    strcpy(uid,ID);
-    srand(randm());
-  }
-  else {
-    if (argc == 3) {
-      seed = atoi(argv[3]);
-      srand(seed);
-      printf("Random seed = %i\n", seed);
-    }
-    else {
-      printf("Usage: %s <matrix_dimension> <num_procs> [random seed]\n",
-	     argv[0]);
-      printf("       %s submit\n", argv[0]);
-      exit(0);
-    }
-  }
-    //  }
-  /* Interpret command-line args */
-  if (!submit) {
-    N = atoi(argv[1]);
-    if (N < 1 || N > MAXN) {
-      printf("N = %i is out of range.\n", N);
-      exit(0);
-    }
-    procs = atoi(argv[2]);
-    if (procs < 1) {
-      printf("Warning: Invalid number of processors = %i.  Using 1.\n", procs);
-      procs = 1;
-    }
-  }
-
-  /* Print parameters */
-  printf("\nMatrix dimension N = %i.\n", N);
-  printf("Number of processors = %i.\n", procs);
-}
 
 /* Initialize A and B (and X to 0.0s) */
 void initialize_inputs() {
@@ -122,7 +72,7 @@ void print_inputs() {
     printf("\nA =\n\t");
     for (row = 0; row < N; row++) {
       for (col = 0; col < N; col++) {
-	printf("%5.2f%s", A[row][col], (col < N-1) ? ", " : ";\n\t");
+  printf("%5.2f%s", A[row][col], (col < N-1) ? ", " : ";\n\t");
       }
     }
     printf("\nB = [");
@@ -182,15 +132,10 @@ void Compute(int norm, int rank, int procs) {
 int main(int argc, char **argv) {
   // MPI_Status  status;
   /* Start up MPI. */ 
+  double startwtime=0.0;
+  double endwtime;
   MPI_Init(NULL, NULL);
-  /* Timing variables */
-  struct timeval etstart, etstop;  /* Elapsed times using gettimeofday() */
-  struct timezone tzdummy;
-  clock_t etstart2, etstop2;  /* Elapsed times using times() */
-  unsigned long long usecstart, usecstop;
-  struct tms cputstart, cputstop;  /* CPU times for my processes */
-  double starttime, endtime; 
-  /* Get the number of processes. */ 
+
   MPI_Comm_size(MPI_COMM_WORLD, &procs);
   /* Get my rank. */ 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -198,37 +143,35 @@ int main(int argc, char **argv) {
   ID = argv[argc-1];
   argc--;
 
-  /* Process program parameters */
-  parameters(argc, argv);
   /* Gaussian Elimination */
-  int norm, row, col, i;  /* Normalization row, and zeroing element row and col */
+  int norm, row, col;  /* Normalization row, and zeroing element row and col */
 
   if (rank == 0) {
     /* Start Clock */
     printf("\nStarting clock.\n");
-    gettimeofday(&etstart, &tzdummy);
-    etstart2 = times(&cputstart);
-    starttime = MPI_Wtime();
-    MPI_Bcast((void*)&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    startwtime = MPI_Wtime();
+
 
     /* Initialize A and B */
     initialize_inputs();
     /* Print input matrices */
     print_inputs();
-  }else {
-    MPI_Bcast((void*)&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
   }
+  //Send rows to different processors by interleaved scheduling.
   Send_data(rank, procs);
 
   /* Gaussian elimination */
   for (norm = 0; norm < N - 1; norm++) {
-    for (i = norm; i < N; i++){
-        MPI_Bcast((void*)A[i], N, MPI_FLOAT, i%procs, MPI_COMM_WORLD);
-        MPI_Bcast((void*)&B[i], 1, MPI_FLOAT, i%procs, MPI_COMM_WORLD);
-    }
+    //To broadcast the norm value and its corresponding value in B    
+    MPI_Bcast((void*)A[norm], N, MPI_FLOAT, norm%procs, MPI_COMM_WORLD);
+    MPI_Bcast((void*)&B[norm], 1, MPI_FLOAT, norm%procs, MPI_COMM_WORLD);
+    //Compute the responsible rows
     Compute(norm, rank, procs);
+    //synchronize among processors
     MPI_Barrier(MPI_COMM_WORLD);
   }
+  //To broadcast the last row
   MPI_Bcast((void*)A[N-1], N, MPI_FLOAT, (N-1)%procs, MPI_COMM_WORLD);
   MPI_Bcast((void*)&B[N-1], 1, MPI_FLOAT, (N-1)%procs, MPI_COMM_WORLD);
 
@@ -242,21 +185,14 @@ int main(int argc, char **argv) {
       X[row] /= A[row][row];
     }
   }
-  endtime   = MPI_Wtime(); 
-  printf("MPI_Wtime took %f seconds\n",endtime-starttime); 
+  if(rank == 0){
+    printf("Stopped clock.\n");
+    endwtime = MPI_Wtime();
+    /* Display output */
+    print_X();
+    printf("\nElapsed time = %f.\n",endwtime-startwtime);
+  }
 
   MPI_Finalize();
-  /* Stop Clock */
-  gettimeofday(&etstop, &tzdummy);
-  etstop2 = times(&cputstop);
-  printf("Stopped clock.\n");
-  usecstart = (unsigned long long)etstart.tv_sec * 1000000 + etstart.tv_usec;
-  usecstop = (unsigned long long)etstop.tv_sec * 1000000 + etstop.tv_usec;
-
-  /* Display output */
-  print_X();
-
   /* Display timing results */
-  printf("\nElapsed time = %g ms.\n",
-	 (float)(usecstop - usecstart)/(float)1000);
 }
